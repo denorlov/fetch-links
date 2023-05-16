@@ -175,10 +175,11 @@ base_directory = "./data/"
 process_directory(base_directory)
 
 # todo
-# 1. if site links more than 10, filter by keywords
-# 2. collect all links from all pages of the site, to make file download only once
-# 3. process links without base url (/abc/efg.rtf)
-# 4. rar resulting archive
-# 5. prepare requerements.txt
-# 6. support google drive
-# 7. support y disk
+# * if site links more than 10, filter by keywords - done
+# * collect all links from all pages of the site, to make file download only once - done
+# * process links without base url (/abc/efg.rtf)
+# * prepare requirements.txt - done
+# * save last succesfully processed archive, restart processing from that point
+# * rar resulting archive
+# * support google drive
+# * support y disk
