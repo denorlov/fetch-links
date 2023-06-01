@@ -77,7 +77,7 @@ def download_and_extract_text(url, target_directory, output_filename):
     except (Exception, SSLError) as e:
         print(e)
 
-RU_CONTENTS_PATTERN = re.compile("^([A-Z][0-9]+)+$")
+RU_CONTENTS_PATTERN = re.compile(r"[\u0400-\u04FF]")
 
 def process_html_file(original_arch_filepath, zip_arch_file: zipfile.ZipFile, inner_arch_filename):
     with zip_arch_file.open(inner_arch_filename) as html_file:
@@ -85,11 +85,12 @@ def process_html_file(original_arch_filepath, zip_arch_file: zipfile.ZipFile, in
 
         # print(f"processing {filename}, contents: {html_content[:50]}")
 
-        if not RU_CONTENTS_PATTERN.match(html_content):
-            print(f"{original_arch_filepath} doesnt contain russian text, will skip it")
+        soup = BeautifulSoup(html_content, 'html.parser')
+
+        if not RU_CONTENTS_PATTERN.search(str(soup)):
+            print(f"{inner_arch_filename} doesnt contain russian text, will skip it")
             return []
 
-        soup = BeautifulSoup(html_content, 'html.parser')
         links = soup.find_all('a', href=True)
         resulting_links = []
 
@@ -109,26 +110,8 @@ def process_html_file(original_arch_filepath, zip_arch_file: zipfile.ZipFile, in
 
         return links
 
-def process_zip_file_in_arch(original_arch_filepath, arch_file, inner_arch_filename):
-    print(f"processing {original_arch_filepath} zip file in the arch {inner_arch_filename}")
-    with arch_file.open(inner_arch_filename) as zip_arc_file:
-        process_zip_file(zip_arc_file)
 
-
-def process_rar_file(filepath):
-    print(f"processing rar file: {filepath}")
-    tmp_dir = "./tmp"
-
-    if os.path.exists(tmp_dir):
-        shutil.rmtree(tmp_dir)
-
-    os.mkdir(tmp_dir)
-    patoolib.extract_archive(filepath, outdir=tmp_dir)
-    process_directory(tmp_dir)
-    #shutil.rmtree(tmp_dir)
-
-
-def process_zip_file(filepath):
+def process_zip(filepath):
     print(f"processing zip file: {filepath}")
     with zipfile.ZipFile(filepath) as zip_arch_file:
         zip_arch_file.testzip()
@@ -136,12 +119,7 @@ def process_zip_file(filepath):
         links = []
         for file_info in zip_arch_file.infolist():
             filename = file_info.filename
-
-            if filename.endswith('.zip'):
-                process_zip_file_in_arch(filepath, zip_arch_file, filename)
-            # elif filename.endswith('.rar'):
-            #     process_rar_file(filename)
-            elif filename.endswith(".html"):
+            if filename.endswith(".html"):
                 links = links + process_html_file(filepath, zip_arch_file, filename)
 
         for link in set(links[:10]):
@@ -160,26 +138,81 @@ def process_zip_file(filepath):
             else:
                 print(f"unprocessed link: {href}")
 
+def process_rar(
+        filepath,
+        processed_site_archs_file, processed_site_arcs: set
+):
+    print(f"processing rar file: {filepath}")
+    tmp_dir = "./tmp"
 
-def process_directory(directory):
+    if os.path.exists(tmp_dir):
+        shutil.rmtree(tmp_dir)
+
+    os.mkdir(tmp_dir)
+    patoolib.extract_archive(filepath, outdir=tmp_dir)
+
+    for root, _, files in os.walk(tmp_dir):
+        for file in files:
+            if file.endswith('.zip'):
+                arch_filepath = os.path.join(root, file)
+                if arch_filepath in processed_site_arcs:
+                    print(f"skip processing of {arch_filepath}, it already was processed")
+                    continue
+                process_zip(arch_filepath)
+                processed_site_archs_file.write(arch_filepath + "\n")
+                processed_site_archs_file.flush()
+
+    #shutil.rmtree(tmp_dir)
+
+def process_directory(
+        directory,
+        processed_archs_file, processed_arcs:set,
+        processed_site_archs_file, processed_site_arcs:set
+):
     for root, _, files in os.walk(directory):
         for file in files:
             if file.endswith('.rar'):
                 arch_filepath = os.path.join(root, file)
-                process_rar_file(arch_filepath)
-            elif file.endswith('.zip'):
-                arch_filepath = os.path.join(root, file)
-                process_zip_file(arch_filepath)
+                if arch_filepath in processed_arcs:
+                    print(f"skip processing of {file}, it already was processed")
+                    continue
+
+                process_rar(arch_filepath, processed_site_archs_file, processed_site_arcs)
+                processed_archs_file.write(arch_filepath + "\n")
+                processed_archs_file.flush()
+            # elif file.endswith('.zip'):
+            #     arch_filepath = os.path.join(root, file)
+            #     process_zip(arch_filepath, processed_site_archs_file, processed_site_arcs)
+            #     processed_archs_file.write(arch_filepath)
 
 base_directory = "./data/"
-process_directory(base_directory)
+processed_archives_file_path = base_directory + "processed_archives.txt"
+processed_site_archives_file_path = base_directory + "processed_site_archives.txt"
+
+with open(processed_archives_file_path, "r") as processed_arcs_file:
+    processed_arcs: set = set(processed_arcs_file.read().splitlines())
+    # print(f"processed_arcs: {processed_arcs}")
+
+
+with open(processed_site_archives_file_path, "r") as processed_site_arcs_file:
+    processed_site_arcs: set = set(processed_site_arcs_file.read().splitlines())
+    # print(f"processed_site_arcs: {processed_site_arcs}")
+
+
+with open(processed_archives_file_path, "a") as processed_arcs_file:
+    with open(processed_site_archives_file_path, "a") as processed_site_arcs_file:
+        process_directory(
+            base_directory,
+            processed_arcs_file, processed_arcs,
+            processed_site_arcs_file, processed_site_arcs
+        )
 
 # todo
 # * if site links more than 10, filter by keywords - done
 # * collect all links from all pages of the site, to make file download only once - done
 # * process links without base url (/abc/efg.rtf)
 # * prepare requirements.txt - done
-# * save last succesfully processed archive, restart processing from that point
+# * save last succesfully processed archive, restart processing from that point - done
 # * rar resulting archive
 # * support google drive
 # * support y disk
