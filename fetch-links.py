@@ -216,7 +216,7 @@ with open(processed_archives_file_path, "a") as processed_arcs_file:
 # todo
 # * if site links more than 10, filter by keywords - done
 # * collect all links from all pages of the site, to make file download only once - done
-# * process links without base url (/abc/efg.rtf)
+# * process links without base url (/abc/efg.rtf) - done
 # * prepare requirements.txt - done
 # * save last succesfully processed archive, restart processing from that point - done
 # * rar resulting archive
