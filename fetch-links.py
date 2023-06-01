@@ -136,7 +136,9 @@ def process_zip(filepath):
             elif href.startswith("http"):
                 download_and_extract_text(href, target_directory, target_filename)
             else:
-                print(f"unprocessed link: {href}")
+                abs_href = os.path.split(target_directory)[1] + href
+                download_and_extract_text("http://" + abs_href, target_directory, "http_" + target_filename)
+                download_and_extract_text("https://" + abs_href, target_directory, "https_" + target_filename)
 
 def process_rar(
         filepath,
@@ -189,14 +191,18 @@ base_directory = "./data/"
 processed_archives_file_path = base_directory + "processed_archives.txt"
 processed_site_archives_file_path = base_directory + "processed_site_archives.txt"
 
-with open(processed_archives_file_path, "r") as processed_arcs_file:
-    processed_arcs: set = set(processed_arcs_file.read().splitlines())
-    # print(f"processed_arcs: {processed_arcs}")
+processed_arcs = set()
+processed_site_arcs = set()
 
+if os.path.exists(processed_archives_file_path):
+    with open(processed_archives_file_path) as processed_arcs_file:
+        processed_arcs = set(processed_arcs_file.read().splitlines())
+        # print(f"processed_arcs: {processed_arcs}")
 
-with open(processed_site_archives_file_path, "r") as processed_site_arcs_file:
-    processed_site_arcs: set = set(processed_site_arcs_file.read().splitlines())
-    # print(f"processed_site_arcs: {processed_site_arcs}")
+if os.path.exists(processed_site_archives_file_path):
+    with open(processed_site_archives_file_path) as processed_site_arcs_file:
+        processed_site_arcs = set(processed_site_arcs_file.read().splitlines())
+        # print(f"processed_site_arcs: {processed_site_arcs}")
 
 
 with open(processed_archives_file_path, "a") as processed_arcs_file:
