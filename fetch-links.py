@@ -79,19 +79,20 @@ def download_and_extract_text(url, target_directory, output_filename):
 
 RU_CONTENTS_PATTERN = re.compile(r"[\u0400-\u04FF]")
 
-def process_html_file(original_arch_filepath, zip_arch_file: zipfile.ZipFile, inner_arch_filename):
-    with zip_arch_file.open(inner_arch_filename) as html_file:
+def process_html_file(original_arch_filepath, zip_arch_file: zipfile.ZipFile, inner_html_filename):
+    with zip_arch_file.open(inner_html_filename) as html_file:
         html_content = html_file.read()
 
-        # print(f"processing {filename}, contents: {html_content[:50]}")
+        print(f"processing {original_arch_filepath}, {inner_html_filename}, contents: {html_content[:50]}")
 
         soup = BeautifulSoup(html_content, 'html.parser')
 
         if not RU_CONTENTS_PATTERN.search(str(soup)):
-            print(f"{inner_arch_filename} doesnt contain russian text, will skip it")
+            print(f"{inner_html_filename} doesnt contain russian text, will skip it")
             return []
 
         links = soup.find_all('a', href=True)
+        print(f"{links}")
         resulting_links = []
 
         for link in links:
@@ -111,16 +112,20 @@ def process_html_file(original_arch_filepath, zip_arch_file: zipfile.ZipFile, in
         return links
 
 
-def process_zip(filepath):
+def process_zip(filepath, processed_site_archs_file, processed_site_arcs: set):
+    if filepath in processed_site_arcs:
+        print(f"skip processing of {filepath}, it already was processed")
+        return
+
     print(f"processing zip file: {filepath}")
     with zipfile.ZipFile(filepath) as zip_arch_file:
         zip_arch_file.testzip()
 
         links = []
         for file_info in zip_arch_file.infolist():
-            filename = file_info.filename
-            if filename.endswith(".html"):
-                links = links + process_html_file(filepath, zip_arch_file, filename)
+            inner_filename = file_info.filename
+            if inner_filename.endswith(".html"):
+                links = links + process_html_file(filepath, zip_arch_file, inner_filename)
 
         for link in set(links[:10]):
             href = link['href']
@@ -140,6 +145,10 @@ def process_zip(filepath):
                 download_and_extract_text("http://" + abs_href, target_directory, "http_" + target_filename)
                 download_and_extract_text("https://" + abs_href, target_directory, "https_" + target_filename)
 
+    processed_site_archs_file.write(filepath + "\n")
+    processed_site_archs_file.flush()
+                
+
 def process_rar(
         filepath,
         processed_site_archs_file, processed_site_arcs: set
@@ -157,12 +166,7 @@ def process_rar(
         for file in files:
             if file.endswith('.zip'):
                 arch_filepath = os.path.join(root, file)
-                if arch_filepath in processed_site_arcs:
-                    print(f"skip processing of {arch_filepath}, it already was processed")
-                    continue
-                process_zip(arch_filepath)
-                processed_site_archs_file.write(arch_filepath + "\n")
-                processed_site_archs_file.flush()
+                process_zip(arch_filepath, processed_site_archs_file, processed_site_arcs)
 
     #shutil.rmtree(tmp_dir)
 
@@ -173,23 +177,23 @@ def process_directory(
 ):
     for root, _, files in os.walk(directory):
         for file in files:
+            arch_filepath = os.path.join(root, file)
+            print(f"processing {arch_filepath}")
             if file.endswith('.rar'):
                 arch_filepath = os.path.join(root, file)
                 if arch_filepath in processed_arcs:
-                    print(f"skip processing of {file}, it already was processed")
+                    print(f"skip processing of {arch_filepath}, it already was processed")
                     continue
 
                 process_rar(arch_filepath, processed_site_archs_file, processed_site_arcs)
                 processed_archs_file.write(arch_filepath + "\n")
                 processed_archs_file.flush()
-            # elif file.endswith('.zip'):
-            #     arch_filepath = os.path.join(root, file)
-            #     process_zip(arch_filepath, processed_site_archs_file, processed_site_arcs)
-            #     processed_archs_file.write(arch_filepath)
+            elif file.endswith('.zip'):
+                process_zip(arch_filepath, processed_site_archs_file, processed_site_arcs)
 
-base_directory = "./data/"
-processed_archives_file_path = base_directory + "processed_archives.txt"
-processed_site_archives_file_path = base_directory + "processed_site_archives.txt"
+base_directory = "./data/results"
+processed_archives_file_path = "./processed_archives.txt"
+processed_site_archives_file_path = "./processed_site_archives.txt"
 
 processed_arcs = set()
 processed_site_arcs = set()
@@ -205,8 +209,8 @@ if os.path.exists(processed_site_archives_file_path):
         # print(f"processed_site_arcs: {processed_site_arcs}")
 
 
-with open(processed_archives_file_path, "a") as processed_arcs_file:
-    with open(processed_site_archives_file_path, "a") as processed_site_arcs_file:
+with open(processed_archives_file_path, "a", encoding="utf-8") as processed_arcs_file:
+    with open(processed_site_archives_file_path, "a", encoding="utf-8") as processed_site_arcs_file:
         process_directory(
             base_directory,
             processed_arcs_file, processed_arcs,
