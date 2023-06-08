@@ -44,7 +44,7 @@ def extract_text_from_excel(excel_filepath):
     df = pd.read_excel(excel_filepath)
     return df.to_string()
 
-def download_and_extract_text(url, target_directory, output_filename):
+def download_and_extract_text(url, target_directory, output_filename, delete_intermidiate_file=False):
     filename = os.path.join(target_directory, output_filename)
     print(f"downloading {url} to {filename}")
     try:
@@ -69,6 +69,10 @@ def download_and_extract_text(url, target_directory, output_filename):
             elif filename.endswith('.xls') or filename.endswith('.xlsx'):
                 text = extract_text_from_excel(filename)
 
+            if delete_intermidiate_file:
+                print(f"removing {filename}")
+                os.remove(filename)
+
             if text:
                 txt_filename = filename[:-4] + '.txt'
                 print(f"writing text of {url} to {txt_filename}")
@@ -83,7 +87,7 @@ def process_html_file(original_arch_filepath, zip_arch_file: zipfile.ZipFile, in
     with zip_arch_file.open(inner_html_filename) as html_file:
         html_content = html_file.read()
 
-        print(f"processing {original_arch_filepath}, {inner_html_filename}, contents: {html_content[:50]}")
+        #print(f"processing {original_arch_filepath}, {inner_html_filename}, contents: {html_content[:50]}")
 
         soup = BeautifulSoup(html_content, 'html.parser')
 
@@ -92,7 +96,6 @@ def process_html_file(original_arch_filepath, zip_arch_file: zipfile.ZipFile, in
             return []
 
         links = soup.find_all('a', href=True)
-        print(f"{links}")
         resulting_links = []
 
         for link in links:
@@ -112,20 +115,20 @@ def process_html_file(original_arch_filepath, zip_arch_file: zipfile.ZipFile, in
         return links
 
 
-def process_zip(filepath, processed_site_archs_file, processed_site_arcs: set):
-    if filepath in processed_site_arcs:
-        print(f"skip processing of {filepath}, it already was processed")
+def process_zip(zip_filepath, processed_site_archs_file, processed_site_arcs: set):
+    if zip_filepath in processed_site_arcs:
+        print(f"skip processing of {zip_filepath}, it already was processed")
         return
 
-    print(f"processing zip file: {filepath}")
-    with zipfile.ZipFile(filepath) as zip_arch_file:
+    print(f"processing zip file: {zip_filepath}")
+    with zipfile.ZipFile(zip_filepath, mode="a") as zip_arch_file:
         zip_arch_file.testzip()
 
         links = []
         for file_info in zip_arch_file.infolist():
             inner_filename = file_info.filename
             if inner_filename.endswith(".html"):
-                links = links + process_html_file(filepath, zip_arch_file, inner_filename)
+                links = links + process_html_file(zip_filepath, zip_arch_file, inner_filename)
 
         for link in set(links[:10]):
             href = link['href']
@@ -139,13 +142,23 @@ def process_zip(filepath, processed_site_archs_file, processed_site_arcs: set):
                 #     gdd.download_file_from_google_drive(file_id.group(1), os.path.basename(href))
                 #     download_and_extract_text(os.path.basename(href), os.path.basename(href))
             elif href.startswith("http"):
-                download_and_extract_text(href, target_directory, target_filename)
+                download_and_extract_text(href, target_directory, target_filename, delete_intermidiate_file=True)
             else:
                 abs_href = os.path.split(target_directory)[1] + href
-                download_and_extract_text("http://" + abs_href, target_directory, "http_" + target_filename)
-                download_and_extract_text("https://" + abs_href, target_directory, "https_" + target_filename)
+                #download_and_extract_text("http://" + abs_href, target_directory, "http_" + target_filename, delete_intermidiate_file=True)
+                #download_and_extract_text("https://" + abs_href, target_directory, "https_" + target_filename, delete_intermidiate_file=True)
 
-    processed_site_archs_file.write(filepath + "\n")
+
+        for dir_path, dir_name, filenames in os.walk(os.path.dirname(zip_filepath)):
+            for file_name in filenames:
+                print(f"postprocessing {dir_path}, {file_name}")
+                if file_name.endswith("txt"):
+                    file_path = os.path.join(dir_path, file_name)
+                    print(f"storing {file_path} back to {zip_arch_file}")
+                    zip_arch_file.write(file_path, file_name)
+                    os.remove(file_path)
+
+    processed_site_archs_file.write(zip_filepath + "\n")
     processed_site_archs_file.flush()
                 
 
@@ -178,7 +191,7 @@ def process_directory(
     for root, _, files in os.walk(directory):
         for file in files:
             arch_filepath = os.path.join(root, file)
-            print(f"processing {arch_filepath}")
+
             if file.endswith('.rar'):
                 arch_filepath = os.path.join(root, file)
                 if arch_filepath in processed_arcs:
