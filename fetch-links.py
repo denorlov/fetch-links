@@ -70,7 +70,7 @@ def download_and_extract_text(url, target_directory, output_filename, delete_int
                 text = extract_text_from_excel(filename)
 
             if delete_intermidiate_file:
-                print(f"removing {filename}")
+                #print(f"removing {filename}")
                 os.remove(filename)
 
             if text:
@@ -151,7 +151,7 @@ def process_zip(zip_filepath, processed_site_archs_file, processed_site_arcs: se
 
         for dir_path, dir_name, filenames in os.walk(os.path.dirname(zip_filepath)):
             for file_name in filenames:
-                print(f"postprocessing {dir_path}, {file_name}")
+                #print(f"postprocessing {dir_path}, {file_name}")
                 if file_name.endswith("txt"):
                     file_path = os.path.join(dir_path, file_name)
                     print(f"storing {file_path} back to {zip_arch_file}")
