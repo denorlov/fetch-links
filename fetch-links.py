@@ -113,7 +113,7 @@ def process_html_file(original_arch_filepath, zip_arch_file: zipfile.ZipFile, in
                             links.append(link)
                 print(f"links filtered by keywords: {links}")
 
-                return links
+            return links
         except Exception as e:
             print(e)
             return []
