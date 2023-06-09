@@ -89,30 +89,34 @@ def process_html_file(original_arch_filepath, zip_arch_file: zipfile.ZipFile, in
 
         #print(f"processing {original_arch_filepath}, {inner_html_filename}, contents: {html_content[:50]}")
 
-        soup = BeautifulSoup(html_content, 'html.parser')
+        try:
+            soup = BeautifulSoup(html_content, 'html.parser')
 
-        if not RU_CONTENTS_PATTERN.search(str(soup)):
-            print(f"{inner_html_filename} doesnt contain russian text, will skip it")
+            if not RU_CONTENTS_PATTERN.search(str(soup)):
+                print(f"{inner_html_filename} doesnt contain russian text, will skip it")
+                return []
+
+            links = soup.find_all('a', href=True)
+            resulting_links = []
+
+            for link in links:
+                for ex in FILE_EXT:
+                    if link['href'].endswith(ex):
+                        resulting_links.append(link)
+
+            links = []
+            if len(resulting_links) > 10:
+                #print(f"too much links: {resulting_links}")
+                for link in resulting_links:
+                    for anch_text in ANCHOR_TEXT:
+                        if anch_text in str(link):
+                            links.append(link)
+                print(f"links filtered by keywords: {links}")
+
+                return links
+        except Exception as e:
+            print(e)
             return []
-
-        links = soup.find_all('a', href=True)
-        resulting_links = []
-
-        for link in links:
-            for ex in FILE_EXT:
-                if link['href'].endswith(ex):
-                    resulting_links.append(link)
-
-        links = []
-        if len(resulting_links) > 10:
-            #print(f"too much links: {resulting_links}")
-            for link in resulting_links:
-                for anch_text in ANCHOR_TEXT:
-                    if anch_text in str(link):
-                        links.append(link)
-            print(f"links filtered by keywords: {links}")
-
-        return links
 
 
 def process_zip(zip_filepath, processed_site_archs_file, processed_site_arcs: set):
